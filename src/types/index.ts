@@ -52,31 +52,55 @@ export interface ApiError {
 }
 // add these to your existing types file
 
-export type OrderStatus =
-    | 'pending'
+export type SubOrderStatus =
+    | 'placed'
     | 'confirmed'
     | 'processing'
     | 'shipped'
+    | 'out_for_delivery'
     | 'delivered'
     | 'cancelled';
 
+// export interface OrderItem {
+//     id: number;
+//     product_id: number;
+//     product_name: string;
+//     quantity: number;
+//     price: number;
+//     image: string | null;
+// }
 export interface OrderItem {
     id: number;
     product_id: number;
     product_name: string;
     quantity: number;
     price: number;
+    total: number;
     image: string | null;
 }
 
-export interface Order {
+
+// export interface Order {
+//     id: number;
+//     order_number: string;
+//     customer_name: string;
+//     customer_email: string;
+//     status: OrderStatus;
+//     total: number;
+//     items: OrderItem[];
+//     created_at: string;
+//     updated_at: string;
+// }
+export interface SellerOrder {
     id: number;
     order_number: string;
+    order_id: number;
+    status: SubOrderStatus;
+    subtotal: number;
     customer_name: string;
-    customer_email: string;
-    status: OrderStatus;
-    total: number;
-    items: OrderItem[];
+    customer_phone: string;
+    delivery_address: string;
+    payment_method: string;
     created_at: string;
-    updated_at: string;
+    items: OrderItem[];
 }

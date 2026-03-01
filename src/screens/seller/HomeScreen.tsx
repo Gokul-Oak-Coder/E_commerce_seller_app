@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import { useStore } from '../../hooks/useStore';
 import { useAuthStore } from '../../store/authStore';
 import Loader from '../../components/common/Loader';
 import { COLORS, FONTS, SPACING } from '../../constants';
+import { sellerOrderService } from '/Users/apple/E-CommerceSellerApp/src/services/sellerOrderService';
+import { productService } from '../../services/productService';
+import { SellerOrder, Product } from '../../types';
 
 const { width } = Dimensions.get('window');
 
@@ -23,53 +26,74 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: '#FEE2E2',
 };
 
-// Dummy data
-const DUMMY_STATS = {
-  totalOrders: 124,
-  pendingOrders: 8,
-  totalRevenue: 45230,
-  totalProducts: 36,
-};
-
-const DUMMY_GRAPH = {
-  labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-  datasets: [
-    {
-      data: [3200, 4500, 3800, 5200, 4100, 6800, 5900],
-    },
-  ],
-};
-
-const StatCard = ({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: string;
-  label: string;
-  value: string | number;
-  color: string;
-}) => (
-  <View style={[styles.statCard, { borderLeftColor: color }]}>
-    <Text style={styles.statIcon}>{icon}</Text>
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
-  </View>
-);
-
 const HomeScreen = () => {
   const { user } = useAuthStore();
   const { store, fetchStore, loading } = useStore();
 
+  const [orders, setOrders] = useState<SellerOrder[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [screenLoading, setScreenLoading] = useState(true);
+
   useEffect(() => {
-    fetchStore();
+    loadData();
   }, []);
 
-  if (loading && !store) return <Loader />;
+  const loadData = async () => {
+    try {
+      setScreenLoading(true);
+      await fetchStore();
+
+      const [ordersRes, productsRes] = await Promise.all([
+        sellerOrderService.getOrders(),
+        productService.getProducts(),
+      ]);
+
+      setOrders(ordersRes.data);
+      setProducts(productsRes);
+    } catch (error) {
+      console.log('Dashboard load error:', error);
+    } finally {
+      setScreenLoading(false);
+    }
+  };
+
+  const stats = useMemo(() => {
+    const totalOrders = orders.length;
+const pendingOrders = orders.filter(o => ['placed', 'confirmed', 'processing'].includes(o.status)).length;
+    const totalRevenue = orders.reduce((sum, o) => sum + o.subtotal, 0);
+    const totalProducts = products.length;
+
+    return {
+      totalOrders,
+      pendingOrders,
+      totalRevenue,
+      totalProducts,
+    };
+  }, [orders, products]);
+
+  const weeklyGraph = useMemo(() => {
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const revenueByDay = Array(7).fill(0);
+
+    orders.forEach(order => {
+      const date = new Date(order.created_at);
+      const day = date.getDay();
+      revenueByDay[day] += order.subtotal;
+    });
+
+    return {
+      labels: days,
+      datasets: [{ data: revenueByDay }],
+    };
+  }, [orders]);
+
+  const recentOrders = orders.slice(0, 5);
+
+  if ((loading && !store) || screenLoading) return <Loader />;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      
       {/* Welcome */}
       <View style={styles.welcomeCard}>
         <View>
@@ -83,44 +107,23 @@ const HomeScreen = () => {
         </View>
       </View>
 
-      {/* Stats Grid */}
+      {/* Stats */}
       <Text style={styles.sectionTitle}>Overview</Text>
       <View style={styles.statsGrid}>
-        <StatCard
-          icon="📋"
-          label="Total Orders"
-          value={DUMMY_STATS.totalOrders}
-          color={COLORS.primary}
-        />
-        <StatCard
-          icon="⏳"
-          label="Pending"
-          value={DUMMY_STATS.pendingOrders}
-          color="#F59E0B"
-        />
-        <StatCard
-          icon="💰"
-          label="Revenue"
-          value={`₹${DUMMY_STATS.totalRevenue.toLocaleString()}`}
-          color={COLORS.success}
-        />
-        <StatCard
-          icon="📦"
-          label="Products"
-          value={DUMMY_STATS.totalProducts}
-          color="#8B5CF6"
-        />
+        <StatCard icon="📋" label="Total Orders" value={stats.totalOrders} color={COLORS.primary}/>
+        <StatCard icon="⏳" label="Pending" value={stats.pendingOrders} color="#F59E0B"/>
+        <StatCard icon="💰" label="Revenue" value={`₹${stats.totalRevenue.toLocaleString()}`} color={COLORS.success}/>
+        <StatCard icon="📦" label="Products" value={stats.totalProducts} color="#8B5CF6"/>
       </View>
 
-      {/* Sales Graph */}
+      {/* Graph */}
       <Text style={styles.sectionTitle}>Sales This Week</Text>
       <View style={styles.chartCard}>
         <LineChart
-          data={DUMMY_GRAPH}
+          data={weeklyGraph}
           width={width - SPACING.lg * 2 - SPACING.md * 2}
           height={200}
           yAxisLabel="₹"
-          yAxisSuffix=""
           chartConfig={{
             backgroundColor: COLORS.white,
             backgroundGradientFrom: COLORS.white,
@@ -128,11 +131,6 @@ const HomeScreen = () => {
             decimalPlaces: 0,
             color: (opacity = 1) => `rgba(108, 71, 255, ${opacity})`,
             labelColor: () => COLORS.gray,
-            propsForDots: {
-              r: '4',
-              strokeWidth: '2',
-              stroke: COLORS.primary,
-            },
           }}
           bezier
           style={styles.chart}
@@ -142,19 +140,14 @@ const HomeScreen = () => {
       {/* Recent Orders */}
       <Text style={styles.sectionTitle}>Recent Orders</Text>
       <View style={styles.recentOrders}>
-        {[
-          { id: '#ORD001', customer: 'John Doe', amount: '₹1,200', status: 'delivered' },
-          { id: '#ORD002', customer: 'Jane Smith', amount: '₹850', status: 'shipped' },
-          { id: '#ORD003', customer: 'Bob Johnson', amount: '₹2,100', status: 'pending' },
-          { id: '#ORD004', customer: 'Alice Brown', amount: '₹450', status: 'confirmed' },
-        ].map((order) => (
+        {recentOrders.map((order) => (
           <View key={order.id} style={styles.recentOrderRow}>
             <View>
-              <Text style={styles.orderNumber}>{order.id}</Text>
-              <Text style={styles.customerName}>{order.customer}</Text>
+              <Text style={styles.orderNumber}>#{order.order_number}</Text>
+              <Text style={styles.customerName}>{order.customer_name}</Text>
             </View>
             <View style={styles.recentOrderRight}>
-              <Text style={styles.orderAmount}>{order.amount}</Text>
+              <Text style={styles.orderAmount}>₹{order.subtotal}</Text>
               <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[order.status] }]}>
                 <Text style={styles.statusText}>{order.status}</Text>
               </View>
@@ -166,6 +159,13 @@ const HomeScreen = () => {
   );
 };
 
+const StatCard = ({ icon, label, value, color }: any) => (
+  <View style={[styles.statCard, { borderLeftColor: color }]}>
+    <Text style={styles.statIcon}>{icon}</Text>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </View>
+);
 const styles = StyleSheet.create({
   container: {
     flex: 1,

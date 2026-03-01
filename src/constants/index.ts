@@ -3,7 +3,7 @@ export const STORAGE_URL = 'http://127.0.0.1:8000/storage';
 
 
 export const COLORS = {
-    primary: '#6C47FF',
+    primary: '#00838F',
     background: '#F8F9FA',
     white: '#FFFFFF',
     black: '#1A1A1A',

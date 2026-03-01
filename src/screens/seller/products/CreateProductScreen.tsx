@@ -73,7 +73,8 @@ const CreateProductScreen = () => {
     const success = await createProduct(formData);
     if (success) {
       Alert.alert('Success', 'Product created!', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+        { text: 'OK', onPress: async () => {navigation.goBack(), await fetchProduct(); }},
+        
       ]);
     }
   };
@@ -255,3 +256,7 @@ const styles = StyleSheet.create({
 });
 
 export default CreateProductScreen;
+
+function fetchProduct() {
+  throw new Error('Function not implemented.');
+}
